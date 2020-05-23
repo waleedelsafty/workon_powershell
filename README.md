@@ -16,10 +16,10 @@ c:\users\username\Documents\WindowsPowerShell\modules\
   
   then you modify   the powershell profile.ps1 (by default it  would be located  in  your  <User Name>\Documents\WindowsPowerShell folder 
    and add the folowing lines to it :
-  
+```powershell
   $MyDocuments = [environment]::getfolderpath("mydocuments")
   Import-Module $MyDocuments\WindowsPowerShell\VirtualEnvWrapper.psm1
-  
+```
   
 your  windows 10  would have a folder called [WindowsPowerShell]  in your  c:\Users\<username>\Documents     for the default powershell that comes  with windowss 10 <  and if  you have updraded  to   a newer version of powershell  you will   have nother directory in the same Documents folder  with the name [powershell]   and each would have its own profile.ps1 that will be used by iether version of powershell when you  open it , ( you may apply the change  to both  if  you want of  chose only one of them  to work with the updated  workon script
 
