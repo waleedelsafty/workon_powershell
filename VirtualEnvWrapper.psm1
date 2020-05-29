@@ -23,6 +23,10 @@
 
 # modified by waleed elsafty     elsafty.waleed@gmail.com 20-may2020
 
+function is_it_Numeric ($Value) {
+    return $Value -match "^[\d\.]+$"
+}
+
 $WORKON_HOME=$Env:WORKON_HOME
 $VIRTUALENWRAPPER_HOOK_DIR=''
 $Version = "0.2.0"
@@ -113,12 +117,13 @@ function Invoke-CreatePyEnv($Command, $Name) {
 # Create Python Environment using the VirtualEnv.exe command
 #
 function New-Python2Env($Python, $Name)  {
+ Write-Host "Started New-Python2Env ($ Python ='$Python' , $ Name = '$Name')"
+
     $Command = (Join-Path (Join-Path (Split-Path $Python -Parent) "Scripts") "virtualenv.exe")
     if ((Test-Path $Command) -eq $false) {
         Write-FormatedError "You must install virtualenv program to create the Python virtual environment '$Name'"
         return 
     }
-
     Invoke-CreatePyEnv $Command $Name
 }
     
@@ -126,6 +131,7 @@ function New-Python2Env($Python, $Name)  {
 # Create Python Environment using the venv module
 # 
 function New-Python3Env($Python, $Name) {
+ Write-Host "Started New-python3ENV  ($ Python ='$Python' , $ Name = '$Name')"
     if (!$Python) {
         $PythonExe = Find-Python
     } else {
@@ -141,6 +147,7 @@ function New-Python3Env($Python, $Name) {
 # Find python.exe in the path. If $Python is given, try with the given path
 #
 function Find-Python ($Python) {
+
     # The path contains the python executable
     if ($Python.EndsWith('python.exe'))
     {
@@ -148,10 +155,37 @@ function Find-Python ($Python) {
         {
             return $false
         }
-
         return $Python
     }
+    
+ if (Is_it_Numeric $Python){
+ $result = & invoke-Expression "py -0p" | Out-String
 
+ foreach ($line in $result.Split([Environment]::NewLine).Where({ $_ -ne "" }))
+{
+        Do {        
+        $line = $line -replace "  ", " "
+        $line = $line -replace "  ", " "
+        } # End of 'Do'
+        While ($line -contains "  ")
+
+  $pyArray   = $line.split(" ").Where({ $_ -ne "" })
+  $pyName    = $pyArray[0]
+  $pyVersion = $pyArray[0].split("-").Where({ $_ -ne "" })[0]
+  $pybits    = $pyArray[0].split("-").Where({ $_ -ne "" })[1]
+  $pyPath    = $pyArray[1]
+
+  if ($python -eq $pyVersion )
+  {
+
+  return $pyPath
+  }
+}
+ } else {
+ 
+ Write-Host  " the version of python you have provided [$python] did not match any of the python versions recognised by your py.exe luncher ... "
+ Write-Host  " Trying to create  virtualenv with default python on your system  "
+ }
     # No python given, get the default one
     if (!$Python) {
         return Get-Command "python.exe" | Select-Object -ExpandProperty Source
@@ -175,8 +209,15 @@ function Find-Python ($Python) {
 # Create the Python Environment regardless the Python version
 #
 function New-PythonEnv($Python, $Name, $Packages, $Append) {
+
+    if ($Python -eq 2) {
+    $version = 2
+    } elseif ($Python -eq 3){
+    $version = 3
+    }
+    else {
     $version = Get-PythonVersion $Python
-    
+    }
     BackupPath
     if ($Append) {
         $Env:PYTHONPATH = "$Append;$($Env:PYTHONPATH)"
@@ -185,11 +226,11 @@ function New-PythonEnv($Python, $Name, $Packages, $Append) {
     if ($Version -eq "2") {
         New-Python2Env -Python $Python -Name $Name 
     } elseif ($Version -eq "3") {
+    
         New-Python3Env -Python $Python -Name $Name 
     } else {
         Write-FormatedError "This is the debug voice. I expected a Python version, got $Version"
-        RestorePath
-        
+        RestorePath        
     }    
 }
 
@@ -231,6 +272,12 @@ function Workon {
         Write-FormatedError "No python venv to work on. Did you forget the -Name option?"
         Get-VirtualEnvs
         Write-Host "`tchose one of the listed invironments  and type in [workon <env-name>]"
+        Write-Host 
+        Write-Host "`tto create a new virtual environment   use the  on of the folowing commands: " 
+        Write-Host "`tmkvirtualenv -python <Version Number> <NewEnvNAME>" -ForegroundColor Green          
+        Write-Host "`t`tmkvirtualenv -python 2.7 my_venv27" -ForegroundColor Yellow    
+        Write-Host "`tmkvirtualenv -python <Python.exe full path> <NewEnvNAME>" -ForegroundColor Green      
+        Write-Host "`t`tmkvirtualenv -python D:\Python2.7.18\Python.exe my_venv27" -ForegroundColor Yellow 
         Write-Host
         return
     }
@@ -238,8 +285,11 @@ function Workon {
     $new_pyenv = Get-FullPyEnvPath $Name
     if ((Test-Path $new_pyenv) -eq $false) {
         Get-VirtualEnvs
-        Write-Host "`t The Python Vertual Environment "-nonewline; Write-Host "'$Name'" -f Red -nonewline; 
-        Write-Host " don't exists. You may want to create it with 'MkVirtualEnv $Name'";
+        Write-Host "`tThe Python Vertual Environment "-nonewline; Write-Host "'$Name'" -f Red -nonewline; 
+        Write-Host " don't exists.";
+        Write-Host "`t`You may want to create it with " -nonewline; 
+        Write-Host "'PS>MkVirtualEnv -python <python version number> $Name'" -ForegroundColor Green                
+        Write-Host "`t example 'PS>mkvirtualenv -python 2.7 $Name '" -ForegroundColor Yellow    
         Write-Host "`t chose one of the listed invironments  and type in [" -nonewline; Write-Host "workon "-nonewline -f Yellow;; Write-Host "$Name"-nonewline -f Red; Write-Host "]";
 
        
@@ -286,6 +336,7 @@ function New-VirtualEnv {
         [string]$Associate
     )
 
+
     if ($Name.StartsWith("-")) {
         Write-FormatedError "The virtual environment name couldn't start with - (minus)"
         return
@@ -305,13 +356,13 @@ function New-VirtualEnv {
         Write-FormatedError "There is an environment with the same name"
         return
     }
-
+    
+    Write-Host "Trying to get PythonRealPath = Find-Python Python:'$Python'"
     $PythonRealPath = Find-Python $Python
     if (!$PythonRealPath) {
         Write-FormatedError "The path to access to python doesn't exist. Python directory = $Python"
         return
     }
-
     New-PythonEnv -Python $PythonRealPath -Name $Name 
     
     foreach($Package in $Packages)  {
@@ -348,36 +399,14 @@ function IsPyEnvExists($Name) {
     return $false
 }
 
-function Get-VirtualEnvs_old {
-    $children = Get-ChildItem $WORKON_HOME
-    Write-Host
-    Write-Host "`tPython Virtual Environments available"
-    Write-Host
-    Write-host ("`t{0,-30}{1,-15}" -f "Name", "Python version")
-    Write-host ("`t{0,-30}{1,-15}" -f "====", "==============")
-    Write-Host
-
-    if ($children.Length) {
-        for($i = 0; $i -lt $children.Length; $i++) {
-            $child = $children[$i]
-            $PythonVersion = (((Invoke-Expression ("$WORKON_HOME\{0}\Scripts\Python.exe --version 2>&1" -f $child)) -replace "`r|`n","") -Split " ")[1]
-            Write-host ("`t{0,-30}{1,-15}" -f $child,$PythonVersion)
-        }
-    } else {
-        Write-Host "`tNo Python Environments"
-    }
-    Write-Host
-}
 
 function Get-VirtualEnvs {
   $children = Get-ChildItem -Directory -name -Exclude  .*  @($WORKON_HOME)
-
   Write-Host "`tYour Python Virtual Environments Directory is:"
   Write-Host "`t"$WORKON_HOME"\" -f Yellow; 
   Write-Host 
-  Write-host ("`t{0,-32}{1,-24}{2,-30}" -f  "date created",         "Python version", "Vertual Environment Name")
-  Write-host ("`t{0,-32}{1,-24}{2,-30}" -f  "=====================","===============","========================")
-
+  Write-host ("`t{0,-32}{1,-24}{2,-30}" -f  "Vertual Environment Name ",         "Python version", "date created")
+  Write-host ("`t{0,-32}{1,-24}{2,-30}" -f  "=========================","===============","========================")
 
     if ($children.count -eq 1) {  
     # must defrentiate  between only one virtual env and multiple because powershell for loon  would  count number of items or number of letters in one item and scrow everything up
